@@ -1,0 +1,95 @@
+@echo off
+setlocal
+set agentpid=_PROCESS_ID_
+set agentprocessname=_AGENT_PROCESS_NAME_
+set downloadagentfolder="_DOWNLOAD_AGENT_FOLDER_"
+set downloadagentversion=_DOWNLOAD_AGENT_VERSION_
+set rootfolder=_ROOT_FOLDER_
+
+set downloadagentbinfolder="{Path.Combine(latestAgent, Constants.Path.BinDirectory)}"
+set downloadagentexternalsfolder="{Path.Combine(latestAgent, Constants.Path.ExternalsDirectory)}"
+set existingagentfolder="{currentAgent}"
+set existingagentbinfolder="{Path.Combine(currentAgent, Constants.Path.BinDirectory)}"
+set existingagentexternalsfolder="{Path.Combine(currentAgent, Constants.Path.ExternalsDirectory)}"
+set backupbinfolder="{Path.Combine(currentAgent, {Constants.Path.BinDirectory}.bak.{Constants.Agent.Version}")}"
+set backupexternalsfolder="{Path.Combine(currentAgent, {Constants.Path.ExternalsDirectory}.bak.{Constants.Agent.Version}")}"
+set logfile="_UPDATE_LOG_"
+set restartinteractiveagent=_RESTART_INTERACTIVE_AGENT_
+
+echo [%date% %time%] --------whoami-------- >> %logfile% 2>&1
+whoami >> %logfile% 2>&1
+echo [%date% %time%] --------whoami-------- >> %logfile% 2>&1
+
+echo [%date% %time%] Waiting for %agentprocessname% (%agentpid%) to complete >> %logfile% 2>&1
+:loop
+tasklist /fi "pid eq %agentpid%" | find /I "%agentprocessname%" 2>nul
+if "%errorlevel%"=="1" goto copy
+echo [%date% %time%] Process %agentpid% still running >> %logfile% 2>&1
+timeout /t 1 /nobreak >nul
+goto loop
+
+:copy
+echo [%date% %time%] Process %agentpid% finished running >> %logfile% 2>&1
+echo [%date% %time%] Sleep 1 more second to make sure process exited >> %logfile% 2>&1
+timeout /t 1 /nobreak >nul
+echo [%date% %time%] Renameing folders and copying files >> %logfile% 2>&1
+
+echo [%date% %time%] move %downloadagentfolder%\bin %rootfolder%\bin.%downloadagentversion% >> %logfile% 2>&1
+move %downloadagentfolder%\bin %rootfolder%\bin.%downloadagentversion% >> %logfile% 2>&1
+if %errorlevel% gtr 0 (
+  echo [%date% %time%] Can't move %downloadagentfolder%\bin to %rootfolder%\bin.%downloadagentversion% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] move %downloadagentfolder%\externals %rootfolder%\externals.%downloadagentversion% >> %logfile% 2>&1
+move %downloadagentfolder%\externals %rootfolder%\externals.%downloadagentversion% >> %logfile% 2>&1
+if %errorlevel% gtr 0 (
+  echo [%date% %time%] Can't move %downloadagentfolder%\externals to %rootfolder%\externals.%downloadagentversion% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] move %downloadagentfolder%\* %rootfolder% /Y >> %logfile% 2>&1
+move %downloadagentfolder%\* %rootfolder% /Y >> %logfile% 2>&1
+if %errorlevel% gtr 0 (
+  echo [%date% %time%] Can't move %downloadagentfolder%\* to %rootfolder%  >> %logfile% 2>&1 & goto end
+)
+
+-------------------------
+echo [%date% %time%] move %existingagentbinfolder% %backupbinfolder% >> %logfile% 2>&1
+move %existingagentbinfolder% %backupbinfolder% >> %logfile% 2>&1
+if "%errorlevel%" gtr "0" (
+  echo [%date% %time%] Can't move %existingagentbinfolder% to %backupbinfolder% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] move %existingagentexternalsfolder% %backupexternalsfolder% >> %logfile% 2>&1
+move %existingagentexternalsfolder% %backupexternalsfolder% >> %logfile% 2>&1
+if "%errorlevel%" gtr "0" (
+  echo [%date% %time%] Can't move %existingagentexternalsfolder% to %backupexternalsfolder% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] move %downloadagentbinfolder% %existingagentbinfolder% >> %logfile% 2>&1
+move %downloadagentbinfolder% %existingagentbinfolder% >> %logfile% 2>&1
+if "%errorlevel%" gtr "0" (
+  echo [%date% %time%] Can't move %downloadagentbinfolder% to %existingagentbinfolder% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] move %downloadagentexternalsfolder% %existingagentexternalsfolder% >> %logfile% 2>&1
+move %downloadagentexternalsfolder% %existingagentexternalsfolder% >> %logfile% 2>&1
+if "%errorlevel%" gtr "0" (
+  echo [%date% %time%] Can't move %downloadagentexternalsfolder% to %existingagentexternalsfolder% >> %logfile% 2>&1 & goto end
+)
+
+echo [%date% %time%] copy %downloadagentfolder%\\*.* %existingagentfolder%\\*.* /Y >> %logfile% 2>&1
+copy %downloadagentfolder%\\*.* %existingagentfolder%\\*.* /Y >> %logfile% 2>&1
+if "%errorlevel%" gtr "0" (
+  echo [%date% %time%] Can't copy %downloadagentfolder%\\*.* to %existingagentfolder%\\*.* >> %logfile% 2>&1 & goto end
+)
+
+if %restartinteractiveagent% equ 1 (
+  echo [%date% %time%] Restart interactive agent >> %logfile% 2>&1
+  endlocal
+  start "Vsts Agent" cmd.exe /k "{Path.Combine(currentAgent, Constants.Path.BinDirectory, agentProcessName)}"
+) else (
+    endlocal
+)
+
+echo [%date% %time%] Exit _update.cmd >> %logfile% 2>&1
+:end
