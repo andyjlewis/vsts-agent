@@ -35,6 +35,10 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
 
             Trace.Info($"An update is availiable.");
 
+            // Print console line that warn user not shutdown agent.
+            var terminal = HostContext.GetService<ITerminal>();
+            terminal.WriteLine(StringUtil.Loc("UpdateInProcess"));
+
             string latestAgent = await DownloadLatestAgent(token);
             Trace.Info($"Download latest agent into: {latestAgent}");
 
@@ -51,6 +55,49 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 IOUtil.DeleteDirectory(existBackUp, token);
             }
 
+            // delete old bin.2.99.0
+            var allBinDirs = Directory.GetDirectories(IOUtil.GetRootPath(), "bin.*");
+            if (allBinDirs.Length > 1)
+            {
+                // there are more than 1 bin.version folder.
+                // delete older bin.version folders.
+                foreach (var oldBinDir in allBinDirs)
+                {
+                    if (string.Equals(oldBinDir, Path.Combine(IOUtil.GetRootPath(), $"bin.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase))
+                    {
+                        // skip for current agent version
+                        continue;
+                    }
+
+                    IOUtil.DeleteDirectory(oldBinDir, token);
+                }
+            }
+
+            // delete old externals.2.99.0
+            var allExternalsDirs = Directory.GetDirectories(IOUtil.GetRootPath(), "externals.*");
+            if (allExternalsDirs.Length > 1)
+            {
+                // there are more than 1 externals.version folder.
+                // delete older externals.version folders.
+                foreach (var oldExternalDir in allExternalsDirs)
+                {
+                    if (string.Equals(oldExternalDir, Path.Combine(IOUtil.GetRootPath(), $"externals.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase))
+                    {
+                        // skip for current agent version
+                        continue;
+                    }
+
+                    IOUtil.DeleteDirectory(oldExternalDir, token);
+                }
+            }
+
+            // move latest agent in place
+            // move from _work/_update -> bin.version and externals.version under root, copy and replace all .sh/.cmd files
+            Directory.Move(Path.Combine(latestAgent, WellKnownDirectory.Bin.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Bin}.{_latestPackage.Version}"));
+            Directory.Move(Path.Combine(latestAgent, WellKnownDirectory.Externals.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Externals}.{_latestPackage.Version}"));
+            IOUtil.CopyDirectory(latestAgent, IOUtil.GetRootPath(), token);
+
+            // locate upgrade script and run it.
             // generate update script
 #if OS_WINDOWS
             string updateScript = GenerateBatchScript(latestAgent, restartInteractiveAgent);
