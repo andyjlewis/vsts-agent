@@ -37,16 +37,18 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
 
             // Print console line that warn user not shutdown agent.
             var terminal = HostContext.GetService<ITerminal>();
-            terminal.WriteLine(StringUtil.Loc("UpdateInProcess"));
+            terminal.WriteLine(StringUtil.Loc("UpdateInProgress"));
 
-            string latestAgent = await DownloadLatestAgent(token);
-            Trace.Info($"Download latest agent into: {latestAgent}");
+            terminal.WriteLine(StringUtil.Loc("DownloadAgent"));
+            await DownloadLatestAgent(token);
+            Trace.Info($"Download latest agent and unzip into agent root.");
 
             // wait till all running job finish
+            terminal.WriteLine(StringUtil.Loc("EnsureJobFinished"));
             await jobDispatcher.WaitAsync(token);
             Trace.Info($"All running job has exited.");
 
-            // delete previous backup agent
+            // delete previous backup agent (back compat, can be remove after serval sprints)
             // bin.bak.2.99.0
             // externals.bak.2.99.0
             foreach (string existBackUp in Directory.GetDirectories(IOUtil.GetRootPath(), "*.bak.*"))
@@ -55,15 +57,16 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 IOUtil.DeleteDirectory(existBackUp, token);
             }
 
-            // delete old bin.2.99.0
+            // delete old bin.2.99.0 folder, only leave the current version and the latest download version
             var allBinDirs = Directory.GetDirectories(IOUtil.GetRootPath(), "bin.*");
-            if (allBinDirs.Length > 1)
+            if (allBinDirs.Length > 2)
             {
-                // there are more than 1 bin.version folder.
+                // there are more than 2 bin.version folder.
                 // delete older bin.version folders.
                 foreach (var oldBinDir in allBinDirs)
                 {
-                    if (string.Equals(oldBinDir, Path.Combine(IOUtil.GetRootPath(), $"bin.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(oldBinDir, Path.Combine(IOUtil.GetRootPath(), $"bin.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(oldBinDir, Path.Combine(IOUtil.GetRootPath(), $"bin.{_latestPackage.Version}"), StringComparison.OrdinalIgnoreCase))
                     {
                         // skip for current agent version
                         continue;
@@ -73,15 +76,16 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 }
             }
 
-            // delete old externals.2.99.0
+            // delete old externals.2.99.0 folder, only leave the current version and the latest download version
             var allExternalsDirs = Directory.GetDirectories(IOUtil.GetRootPath(), "externals.*");
-            if (allExternalsDirs.Length > 1)
+            if (allExternalsDirs.Length > 2)
             {
-                // there are more than 1 externals.version folder.
+                // there are more than 2 externals.version folder.
                 // delete older externals.version folders.
                 foreach (var oldExternalDir in allExternalsDirs)
                 {
-                    if (string.Equals(oldExternalDir, Path.Combine(IOUtil.GetRootPath(), $"externals.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(oldExternalDir, Path.Combine(IOUtil.GetRootPath(), $"externals.{Constants.Agent.Version}"), StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(oldExternalDir, Path.Combine(IOUtil.GetRootPath(), $"externals.{_latestPackage.Version}"), StringComparison.OrdinalIgnoreCase))
                     {
                         // skip for current agent version
                         continue;
@@ -91,18 +95,12 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 }
             }
 
-            // move latest agent in place
-            // move from _work/_update -> bin.version and externals.version under root, copy and replace all .sh/.cmd files
-            Directory.Move(Path.Combine(latestAgent, WellKnownDirectory.Bin.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Bin}.{_latestPackage.Version}"));
-            Directory.Move(Path.Combine(latestAgent, WellKnownDirectory.Externals.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Externals}.{_latestPackage.Version}"));
-            IOUtil.CopyDirectory(latestAgent, IOUtil.GetRootPath(), token);
-
-            // locate upgrade script and run it.
-            // generate update script
+            // generate update script from template
+            terminal.WriteLine(StringUtil.Loc("GenerateAndRunUpdateScript"));
 #if OS_WINDOWS
-            string updateScript = GenerateBatchScript(latestAgent, restartInteractiveAgent);
+            string updateScript = GenerateBatchScript(restartInteractiveAgent);
 #elif (OS_OSX || OS_LINUX)
-            string updateScript = GenerateShellScript(latestAgent, restartInteractiveAgent);
+            string updateScript = GenerateShellScript(restartInteractiveAgent);
 #endif
             Trace.Info($"Generate update script into: {updateScript}");
 
@@ -118,6 +116,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
 #endif
             invokeScript.Start();
             Trace.Info($"Update script start running");
+            terminal.WriteLine(StringUtil.Loc("AgentExit"));
 
             return true;
         }
@@ -153,7 +152,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
         /// </summary>
         /// <param name="token"></param>
         /// <returns></returns>
-        private async Task<string> DownloadLatestAgent(CancellationToken token)
+        private async Task DownloadLatestAgent(CancellationToken token)
         {
             var agentServer = HostContext.GetService<IAgentServer>();
             string latestAgentDirectory = IOUtil.GetUpdatePath(HostContext);
@@ -241,86 +240,28 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 }
             }
 
-            return latestAgentDirectory;
+            // move latest agent into agent root folder
+            // move bin/externals from _work/_update -> bin.version and externals.version under root, copy and replace all .sh/.cmd files
+            Directory.Move(Path.Combine(latestAgentDirectory, WellKnownDirectory.Bin.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Bin}.{_latestPackage.Version}"));
+            Directory.Move(Path.Combine(latestAgentDirectory, WellKnownDirectory.Externals.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Externals}.{_latestPackage.Version}"));
+            IOUtil.CopyDirectory(latestAgentDirectory, IOUtil.GetRootPath(), token);
         }
 
-        private string GenerateBatchScript(string latestAgent, bool restartInteractiveAgent)
+        private string GenerateBatchScript(bool restartInteractiveAgent)
         {
             int processId = Process.GetCurrentProcess().Id;
             string updateLog = Path.Combine(IOUtil.GetDiagPath(), $"SelfUpdate-{DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")}.log");
-            string currentAgent = IOUtil.GetRootPath();
-            string agentProcessName = "Agent.Listener.exe";
+            string agentRoot = IOUtil.GetRootPath();
 
-            StringBuilder scriptBuilder = new StringBuilder();
-            scriptBuilder.AppendLine("@echo off");
-            scriptBuilder.AppendLine("setlocal");
-            scriptBuilder.AppendLine($"set agentpid={processId}");
-            scriptBuilder.AppendLine($"set agentprocessname=\"{agentProcessName}\"");
-            scriptBuilder.AppendLine($"set downloadagentfolder=\"{latestAgent}\"");
-            scriptBuilder.AppendLine($"set downloadagentbinfolder=\"{Path.Combine(latestAgent, Constants.Path.BinDirectory)}\"");
-            scriptBuilder.AppendLine($"set downloadagentexternalsfolder=\"{Path.Combine(latestAgent, Constants.Path.ExternalsDirectory)}\"");
-            scriptBuilder.AppendLine($"set existingagentfolder=\"{currentAgent}\"");
-            scriptBuilder.AppendLine($"set existingagentbinfolder=\"{Path.Combine(currentAgent, Constants.Path.BinDirectory)}\"");
-            scriptBuilder.AppendLine($"set existingagentexternalsfolder=\"{Path.Combine(currentAgent, Constants.Path.ExternalsDirectory)}\"");
-            scriptBuilder.AppendLine($"set backupbinfolder=\"{Path.Combine(currentAgent, $"{Constants.Path.BinDirectory}.bak.{Constants.Agent.Version}")}\"");
-            scriptBuilder.AppendLine($"set backupexternalsfolder=\"{Path.Combine(currentAgent, $"{Constants.Path.ExternalsDirectory}.bak.{Constants.Agent.Version}")}\"");
-            scriptBuilder.AppendLine($"set logfile=\"{updateLog}\"");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] --------env-------- >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("set >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("echo [%date% %time%] --------env-------- >> %logfile% 2>&1");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] --------whoami-------- >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("whoami >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("echo [%date% %time%] --------whoami-------- >> %logfile% 2>&1");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] Waiting for %agentprocessname% (%agentpid%) to complete >> %logfile% 2>&1");
-            scriptBuilder.AppendLine(":loop");
-            scriptBuilder.AppendLine("tasklist /fi \"pid eq %agentpid%\" | find /I \"%agentprocessname%\" 2>nul");
-            scriptBuilder.AppendLine("if \"%errorlevel%\"==\"1\" goto copy");
-            scriptBuilder.AppendLine("echo [%date% %time%] Process %agentpid% still running >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("timeout /t 1 /nobreak >nul");
-            scriptBuilder.AppendLine("goto loop");
-
-            scriptBuilder.AppendLine(":copy");
-            scriptBuilder.AppendLine("echo [%date% %time%] Process %agentpid% finished running >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("echo [%date% %time%] Sleep 1 more second to make sure process exited >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("timeout /t 1 /nobreak >nul");
-            scriptBuilder.AppendLine("echo [%date% %time%] Renameing folders and copying files >> %logfile% 2>&1");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] move %existingagentbinfolder% %backupbinfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("move %existingagentbinfolder% %backupbinfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("if \"%errorlevel%\" gtr \"0\" (echo [%date% %time%] Can't move %existingagentbinfolder% to %backupbinfolder% >> %logfile% 2>&1 & goto end)");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] move %existingagentexternalsfolder% %backupexternalsfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("move %existingagentexternalsfolder% %backupexternalsfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("if \"%errorlevel%\" gtr \"0\" (echo [%date% %time%] Can't move %existingagentexternalsfolder% to %backupexternalsfolder% >> %logfile% 2>&1 & goto end)");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] move %downloadagentbinfolder% %existingagentbinfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("move %downloadagentbinfolder% %existingagentbinfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("if \"%errorlevel%\" gtr \"0\" (echo [%date% %time%] Can't move %downloadagentbinfolder% to %existingagentbinfolder% >> %logfile% 2>&1 & goto end)");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] move %downloadagentexternalsfolder% %existingagentexternalsfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("move %downloadagentexternalsfolder% %existingagentexternalsfolder% >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("if \"%errorlevel%\" gtr \"0\" (echo [%date% %time%] Can't move %downloadagentexternalsfolder% to %existingagentexternalsfolder% >> %logfile% 2>&1 & goto end)");
-
-            scriptBuilder.AppendLine("echo [%date% %time%] copy %downloadagentfolder%\\*.* %existingagentfolder%\\*.* /Y >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("copy %downloadagentfolder%\\*.* %existingagentfolder%\\*.* /Y >> %logfile% 2>&1");
-            scriptBuilder.AppendLine("if \"%errorlevel%\" gtr \"0\" (echo [%date% %time%] Can't copy %downloadagentfolder%\\*.* to %existingagentfolder%\\*.* >> %logfile% 2>&1 & goto end)");
-
-            if (restartInteractiveAgent)
-            {
-                scriptBuilder.AppendLine("echo [%date% %time%] Restart interactive agent >> %logfile% 2>&1");
-                scriptBuilder.AppendLine("endlocal");
-                scriptBuilder.AppendLine($"start \"Vsts Agent\" cmd.exe /k \"{Path.Combine(currentAgent, Constants.Path.BinDirectory, agentProcessName)}\"");
-            }
-            else
-            {
-                scriptBuilder.AppendLine("endlocal");
-            }
-
-            scriptBuilder.AppendLine("echo [%date% %time%] Exit _update.cmd >> %logfile% 2>&1");
-            scriptBuilder.AppendLine(":end");
+            string templatePath = Path.Combine(agentRoot, $"bin.{_latestPackage.Version}", "update.cmd.template");
+            string template = File.ReadAllText(templatePath);
+            template.Replace("_PROCESS_ID_", processId.ToString());
+            template.Replace("_AGENT_PROCESS_NAME_", "Agent.Listener.exe");
+            template.Replace("_ROOT_FOLDER_", agentRoot);
+            template.Replace("_EXIST_AGENT_VERSION_", Constants.Agent.Version);
+            template.Replace("_DOWNLOAD_AGENT_VERSION_", _latestPackage.Version);
+            template.Replace("_UPDATE_LOG_", updateLog);
+            template.Replace("_RESTART_INTERACTIVE_AGENT_", restartInteractiveAgent ? "1" : "0");
 
             string updateScript = Path.Combine(IOUtil.GetWorkPath(HostContext), "_update.cmd");
             if (File.Exists(updateScript))
@@ -328,7 +269,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 IOUtil.DeleteFile(updateScript);
             }
 
-            File.WriteAllText(updateScript, scriptBuilder.ToString());
+            File.WriteAllText(updateScript, template);
 
             return updateScript;
         }
