@@ -66,8 +66,7 @@ if %errorlevel% equ 0 (
     echo [%date% %time%] Can't delete existing junction bin folder >> %logfile% 2>&1
     goto fail
   )
-) 
-else (
+) else (
   :: otherwise, we need to move the current bin folder to bin.2.99.0 folder.
   echo [%date% %time%] move %rootfolder%\bin %rootfolder%\bin.%existagentversion% >> %logfile% 2>&1
   move %rootfolder%\bin %rootfolder%\bin.%existagentversion% >> %logfile% 2>&1
@@ -88,8 +87,7 @@ if %errorlevel% equ 0 (
     echo [%date% %time%] Can't delete existing junction externals folder >> %logfile% 2>&1
     goto fail
   )
-) 
-else (
+) else (
   :: otherwise, we need to move the current externals folder to externals.2.99.0 folder.
   echo [%date% %time%] move %rootfolder%\externals %rootfolder%\externals.%existagentversion% >> %logfile% 2>&1
   move %rootfolder%\externals %rootfolder%\externals.%existagentversion% >> %logfile% 2>&1
