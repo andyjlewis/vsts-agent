@@ -55,59 +55,79 @@ then
     # we just need to delete the junction point.
     date "+[%F %T-%4N] Delete existing junction bin folder" >> "$logfile"
     rm "$rootfolder/bin" >> "$logfile"
-
-#   if %errorlevel% gtr 0 (
-#     echo [%date% %time%] Can't delete existing junction bin folder >> %logfile% 2>&1
-#     goto fail
-#   )
-#     echo "$file is a symlink to a directory"
-fi
-
-date "+[%F %T-%4N] Renaming folders and copying files" >> "$logfile"
-date "+[%F %T-%4N] move $existingagentbinfolder $backupbinfolder" >> "$logfile" 2>&1
-mv -fv "$existingagentbinfolder" "$backupbinfolder" >> "$logfile" 2>&1
-if [ $? -ne 0 ]
+    if [ $? -ne 0 ]
     then
-        date "+[%F %T-%4N] Can't move $existingagentbinfolder to $backupbinfolder" >> "$logfile" 2>&1
+        date "+[%F %T-%4N] Can't delete existing junction bin folder" >> "$logfile"
+        mv -fv "$logfile" "$logfile.failed"
         exit 1
-fi
-
-date "+[%F %T-%4N] move $existingagentexternalsfolder $backupexternalsfolder" >> "$logfile" 2>&1
-mv -fv "$existingagentexternalsfolder" "$backupexternalsfolder" >> "$logfile" 2>&1
-if [ $? -ne 0 ]
+    fi
+else
+   # otherwise, we need to move the current bin folder to bin.2.99.0 folder.
+    date "+[%F %T-%4N] move $rootfolder/bin $rootfolder/bin.$existagentversion" >> "$logfile" 2>&1
+    mv -fv "$rootfolder/bin" "$rootfolder/bin.$existagentversion" >> "$logfile" 2>&1
+    if [ $? -ne 0 ]
     then
-        date "+[%F %T-%4N] Can't move $existingagentexternalsfolder to $backupexternalsfolder" >> "$logfile" 2>&1
+        date "+[%F %T-%4N] Can't move $rootfolder/bin to $rootfolder/bin.$existagentversion" >> "$logfile" 2>&1
+        mv -fv "$logfile" "$logfile.failed"
         exit 1
+    fi
 fi
 
-date "+[%F %T-%4N] move $downloadagentbinfolder $existingagentbinfolder" >> "$logfile" 2>&1
-mv -fv "$downloadagentbinfolder" "$existingagentbinfolder" >> "$logfile" 2>&1
-if [ $? -ne 0 ]
+# check externals folder
+if [[ -L "$rootfolder/externals" && -d "$rootfolder/externals" ]]
+then
+    # the externals folder is already a junction folder
+    # we just need to delete the junction point.
+    date "+[%F %T-%4N] Delete existing junction externals folder" >> "$logfile"
+    rm "$rootfolder/externals" >> "$logfile"
+    if [ $? -ne 0 ]
     then
-        date "+[%F %T-%4N] Can't move $downloadagentbinfolder to $existingagentbinfolder" >> "$logfile" 2>&1
+        date "+[%F %T-%4N] Can't delete existing junction externals folder" >> "$logfile"
+        mv -fv "$logfile" "$logfile.failed"
         exit 1
-fi
-
-date "+[%F %T-%4N] move $downloadagentexternalsfolder $existingagentexternalsfolder" >> "$logfile" 2>&1
-mv -fv "$downloadagentexternalsfolder" "$existingagentexternalsfolder" >> "$logfile" 2>&1
-if [ $? -ne 0 ]
+    fi
+else
+    # otherwise, we need to move the current externals folder to externals.2.99.0 folder.
+    date "+[%F %T-%4N] move $rootfolder/externals $rootfolder/externals.$existagentversion" >> "$logfile" 2>&1
+    mv -fv "$rootfolder/externals" "$rootfolder/externals.$existagentversion" >> "$logfile" 2>&1
+    if [ $? -ne 0 ]
     then
-        date "+[%F %T-%4N] Can't move $downloadagentexternalsfolder to $existingagentexternalsfolder" >> "$logfile" 2>&1
+        date "+[%F %T-%4N] Can't move $rootfolder/externals to $rootfolder/externals.$existagentversion" >> "$logfile" 2>&1
+        mv -fv "$logfile" "$logfile.failed"
         exit 1
+    fi
 fi
 
-date "+[%F %T-%4N] copy $downloadagentfolder/*.* $existingagentfolder" >> "$logfile" 2>&1
-cp -fv "$downloadagentfolder"/*.* "$existingagentfolder" >> "$logfile" 2>&1
+# create junction bin folder
+date "+[%F %T-%4N] Create junction bin folder" >> "$logfile" 2>&1
+ln -s $rootfolder/bin.$downloadagentversion $rootfolder/bin >> "$logfile" 2>&1
 if [ $? -ne 0 ]
-    then
-        date "+[%F %T-%4N] Can't copy $downloadagentfolder/*.* to $existingagentfolder" >> "$logfile" 2>&1
-        exit 1
+then
+    date "+[%F %T-%4N] Can't create junction bin folder" >> "$logfile" 2>&1
+    mv -fv "$logfile" "$logfile.failed"
+    exit 1
 fi
 
+# create junction externals folder
+date "+[%F %T-%4N] Create junction externals folder" >> "$logfile" 2>&1
+ln -s $rootfolder/externals.$downloadagentversion $rootfolder/externals >> "$logfile" 2>&1
+if [ $? -ne 0 ]
+then
+    date "+[%F %T-%4N] Can't create junction externals folder" >> "$logfile" 2>&1
+    mv -fv "$logfile" "$logfile.failed"
+    exit 1
+fi
+
+date "+[%F %T-%4N] Update succeed" >> "$logfile"
+
+# rename the update log file with %logfile%.succeed/.failed/succeedneedrestart
+# agent service host can base on the log file name determin the result of the agent update
+date "+[%F %T-%4N] Rename $logfile to be $logfile.succeed" >> "$logfile" 2>&1
+mv -fv "$logfile" "$logfile.succeed" >> "$logfile" 2>&1
+
+# restart interactive agent if needed
 if [ $restartinteractiveagent -ne 0 ]
-    then
-        date "+[%F %T-%4N] Restarting interactive agent"  >> "$logfile" 2>&1
-        $existingagentbinfolder/$agentprocessname &
+then
+    date "+[%F %T-%4N] Restarting interactive agent"  >> "$logfile.succeed" 2>&1
+    $rootfolder/bin/$agentprocessname &
 fi
-
-date "+[%F %T-%4N] Exit _update.sh" >> "$logfile" 2>&1
