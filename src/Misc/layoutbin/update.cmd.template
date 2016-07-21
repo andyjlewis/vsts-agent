@@ -61,7 +61,7 @@ if %errorlevel% equ 0 (
   :: return code 0 means it find a bin folder that is a junction folder
   :: we just need to delete the junction point.
   echo [%date% %time%] Delete existing junction bin folder >> %logfile% 2>&1
-  rmdir %rootfolder%\bin
+  rmdir %rootfolder%\bin >> %logfile% 2>&1
   if %errorlevel% gtr 0 (
     echo [%date% %time%] Can't delete existing junction bin folder >> %logfile% 2>&1
     goto fail
@@ -83,7 +83,7 @@ if %errorlevel% equ 0 (
   :: return code 0 means it find an externals folder that is a junction folder
   :: we just need to delete the junction point.
   echo [%date% %time%] Delete existing junction externals folder >> %logfile% 2>&1
-  rmdir %rootfolder%\externals
+  rmdir %rootfolder%\externals >> %logfile% 2>&1
   if %errorlevel% gtr 0 (
     echo [%date% %time%] Can't delete existing junction externals folder >> %logfile% 2>&1
     goto fail
@@ -101,7 +101,7 @@ else (
 
 :: create junction bin folder
 echo [%date% %time%] Create junction bin folder >> %logfile% 2>&1
-mklink /J %rootfolder%\bin %rootfolder%\bin.%downloadagentversion%
+mklink /J %rootfolder%\bin %rootfolder%\bin.%downloadagentversion% >> %logfile% 2>&1
 if %errorlevel% gtr 0 (
   echo [%date% %time%] Can't create junction bin folder >> %logfile% 2>&1
   goto fail
@@ -109,7 +109,7 @@ if %errorlevel% gtr 0 (
 
 :: create junction externals folder
 echo [%date% %time%] Create junction externals folder >> %logfile% 2>&1
-mklink /J %rootfolder%\externals %rootfolder%\externals.%downloadagentversion%
+mklink /J %rootfolder%\externals %rootfolder%\externals.%downloadagentversion% >> %logfile% 2>&1
 if %errorlevel% gtr 0 (
   echo [%date% %time%] Can't create junction externals folder >> %logfile% 2>&1
   goto fail

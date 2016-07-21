@@ -47,6 +47,22 @@ sleep 1
 
 # if the bin/externals junction point already exist, we just need to delete the juction point then re-create to point to new bin/externals folder.
 # if the bin/externals still are real folders, we need to rename the existing folder to bin.version format then create junction point to new bin/externals folder.
+
+# check bin folder
+if [[ -L "$rootfolder/bin" && -d "$rootfolder/bin" ]]
+then
+    # return code 0 means it find a bin folder that is a junction folder
+    # we just need to delete the junction point.
+    date "+[%F %T-%4N] Delete existing junction bin folder" >> "$logfile"
+    rm "$rootfolder/bin" >> "$logfile"
+
+#   if %errorlevel% gtr 0 (
+#     echo [%date% %time%] Can't delete existing junction bin folder >> %logfile% 2>&1
+#     goto fail
+#   )
+#     echo "$file is a symlink to a directory"
+fi
+
 date "+[%F %T-%4N] Renaming folders and copying files" >> "$logfile"
 date "+[%F %T-%4N] move $existingagentbinfolder $backupbinfolder" >> "$logfile" 2>&1
 mv -fv "$existingagentbinfolder" "$backupbinfolder" >> "$logfile" 2>&1
