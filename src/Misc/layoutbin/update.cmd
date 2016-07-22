@@ -127,7 +127,7 @@ move "%logfile%" "%logfile%.succeed"
 if %restartinteractiveagent% equ 1 (
   echo [%date% %time%] Restart interactive agent >> "%logfile%.succeed" 2>&1
   endlocal
-  start "Vsts Agent" cmd.exe /k "_ROOT_FOLDER_\bin\_AGENT_PROCESS_NAME_"
+  start "Vsts Agent" cmd.exe /k "_ROOT_FOLDER_\run.cmd"
 ) else (
   endlocal
 )

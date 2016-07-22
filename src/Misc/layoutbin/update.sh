@@ -129,5 +129,5 @@ mv -fv "$logfile" "$logfile.succeed" >> "$logfile" 2>&1
 if [ $restartinteractiveagent -ne 0 ]
 then
     date "+[%F %T-%4N] Restarting interactive agent"  >> "$logfile.succeed" 2>&1
-    $rootfolder/bin/$agentprocessname &
+    "$rootfolder/run.sh" &
 fi
