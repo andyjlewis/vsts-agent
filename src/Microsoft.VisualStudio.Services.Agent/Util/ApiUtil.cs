@@ -102,6 +102,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Util
 #pragma warning restore 618
             }
 
+            credentials.PromptType = CredentialPromptType.DoNotPrompt;
             return credentials;
         }
     }

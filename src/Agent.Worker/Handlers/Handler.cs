@@ -67,20 +67,20 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Handlers
                 AddEnvironmentVariable(
                     key: $"ENDPOINT_AUTH_{partialKey}",
                     // Note, JsonUtility.ToString will not null ref if the auth object is null.
-                    value: JsonUtility.ToString(endpoint.Authorization)); 
-                if(endpoint.Authorization != null && endpoint.Authorization.Scheme != null)
+                    value: JsonUtility.ToString(endpoint.Authorization));
+                if (endpoint.Authorization != null && endpoint.Authorization.Scheme != null)
                 {
                     AddEnvironmentVariable(
                         key: $"ENDPOINT_AUTH_SCHEME_{partialKey}",
                         value: endpoint.Authorization.Scheme);
 
-                    foreach(KeyValuePair<string, string> pair in endpoint.Authorization.Parameters)
+                    foreach (KeyValuePair<string, string> pair in endpoint.Authorization.Parameters)
                     {
                         AddEnvironmentVariable(
                             key: $"ENDPOINT_AUTH_PARAMETER_{partialKey}_{pair.Key?.Replace(' ', '_').ToUpperInvariant()}",
                             value: pair.Value);
                     }
-                }              
+                }
                 if (endpoint.Id != Guid.Empty)
                 {
                     AddEnvironmentVariable(
@@ -88,7 +88,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Handlers
                         // Note, JsonUtility.ToString will not null ref if the data object is null.
                         value: JsonUtility.ToString(endpoint.Data));
 
-                    if(endpoint.Data != null)
+                    if (endpoint.Data != null)
                     {
                         foreach (KeyValuePair<string, string> pair in endpoint.Data)
                         {
@@ -127,10 +127,14 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Handlers
             // Add the public variables to the environment variable dictionary.
             foreach (KeyValuePair<string, string> pair in ExecutionContext.Variables.Public)
             {
-                // Format all variables other than "agent.jobstatus".
-                string formattedKey = string.Equals(pair.Key, Constants.Variables.Agent.JobStatus, StringComparison.OrdinalIgnoreCase)
-                    ? pair.Key
-                    : (pair.Key ?? string.Empty).Replace('.', '_').ToUpperInvariant();
+                // For "agent.jobstatus", we need both agent.jobstatus and AGENT_JOBSTATUS
+                if (string.Equals(pair.Key, Constants.Variables.Agent.JobStatus, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddEnvironmentVariable(pair.Key, pair.Value);
+                }
+
+                // Format all variables
+                string formattedKey = (pair.Key ?? string.Empty).Replace('.', '_').ToUpperInvariant();
                 AddEnvironmentVariable(
                     formattedKey,
                     pair.Value);

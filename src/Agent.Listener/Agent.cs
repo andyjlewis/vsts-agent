@@ -185,7 +185,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
             {
                 var notification = HostContext.GetService<IJobNotification>();
                 notification.StartClient(settings.NotificationPipeName, token);
-                bool disableAutoUpdate = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("agent.disableupdate"));
+                bool disableAutoUpdate = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VSTS_DISABLEAGENTUPDATE"));
                 bool autoUpdateInProgress = false;
                 Task<bool> selfUpdateTask = null;
                 jobDispatcher = HostContext.CreateService<IJobDispatcher>();
