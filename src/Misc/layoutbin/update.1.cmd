@@ -56,7 +56,7 @@ rem if the bin/externals junction point already exist, we just need to delete th
 rem if the bin/externals still are real folders, we need to rename the existing folder to bin.version format then create junction point to new bin/externals folder.
 
 rem check bin folder
-dir %rootfolder% /AL | findstr "bin" >> %logfile% 2>&1
+dir "%rootfolder%" /AL | findstr "bin" >> %logfile% 2>&1
 if ERRORLEVEL 1 (
   rem return code 1 means it can't find a bin folder that is a junction folder
   rem so we need to move the current bin folder to bin.2.99.0 folder.

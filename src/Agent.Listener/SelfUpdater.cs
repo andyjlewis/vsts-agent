@@ -240,11 +240,23 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener
                 }
             }
 
-            // move latest agent into agent root folder
-            // move bin/externals from _work/_update -> bin.version and externals.version under root, copy and replace all .sh/.cmd files
-            Directory.Move(Path.Combine(latestAgentDirectory, WellKnownDirectory.Bin.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Bin}.{_latestPackage.Version}"));
-            Directory.Move(Path.Combine(latestAgentDirectory, WellKnownDirectory.Externals.ToString()), Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Externals}.{_latestPackage.Version}"));
-            IOUtil.CopyDirectory(latestAgentDirectory, IOUtil.GetRootPath(), token);
+            // copy latest agent into agent root folder
+            // copy bin from _work/_update -> bin.version under root
+            string binVersionDir = Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Bin}.{_latestPackage.Version}");
+            Directory.CreateDirectory(binVersionDir);
+            IOUtil.CopyDirectory(Path.Combine(latestAgentDirectory, WellKnownDirectory.Bin.ToString()), binVersionDir, token);
+
+            // copy externals from _work/_update -> externals.version under root
+            string externalsVersionDir = Path.Combine(IOUtil.GetRootPath(), $"{WellKnownDirectory.Externals}.{_latestPackage.Version}");
+            Directory.CreateDirectory(externalsVersionDir);
+            IOUtil.CopyDirectory(Path.Combine(latestAgentDirectory, WellKnownDirectory.Externals.ToString()), externalsVersionDir, token);
+
+            // copy and replace all .sh/.cmd files
+            foreach (FileInfo file in new DirectoryInfo(latestAgentDirectory).GetFiles() ?? new FileInfo[0])
+            {
+                // Copy and replace the file.
+                file.CopyTo(Path.Combine(IOUtil.GetRootPath(), file.Name), true);
+            }
         }
 
         private string GenerateBatchScript(bool restartInteractiveAgent)
