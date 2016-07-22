@@ -100,7 +100,7 @@ fi
 
 # create junction bin folder
 date "+[%F %T-%4N] Create junction bin folder" >> "$logfile" 2>&1
-ln -s $rootfolder/bin.$downloadagentversion $rootfolder/bin >> "$logfile" 2>&1
+ln -s "$rootfolder/bin.$downloadagentversion" "$rootfolder/bin" >> "$logfile" 2>&1
 if [ $? -ne 0 ]
 then
     date "+[%F %T-%4N] Can't create junction bin folder" >> "$logfile" 2>&1
@@ -110,7 +110,7 @@ fi
 
 # create junction externals folder
 date "+[%F %T-%4N] Create junction externals folder" >> "$logfile" 2>&1
-ln -s $rootfolder/externals.$downloadagentversion $rootfolder/externals >> "$logfile" 2>&1
+ln -s "$rootfolder/externals.$downloadagentversion" "$rootfolder/externals" >> "$logfile" 2>&1
 if [ $? -ne 0 ]
 then
     date "+[%F %T-%4N] Can't create junction externals folder" >> "$logfile" 2>&1
